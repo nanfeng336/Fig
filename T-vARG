@@ -1,0 +1,164 @@
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(RColorBrewer)
+
+
+arg_data <- data.frame(
+  Subtype = c("APH(2)-Ie", "bacA", "macA", "poxtA", "lmrD", "erm(42)", 
+              "emrB", "arnA", "tet(W)", "tet(O)", "tet(M)", "dfrE", "vanTG"),
+  Type = c("aminoglycoside", "bacitracin", "macrolide-lincosamide-streptogramin",
+           "macrolide-lincosamide-streptogramin", "macrolide-lincosamide-streptogramin",
+           "macrolide-lincosamide-streptogramin", "multidrug", "polymyxin",
+           "tetracycline", "tetracycline", "tetracycline", "trimethoprim", "vancomycin"),
+  Rank = c("III", "III", "III", "I", "III", "I", "III", "III", "III", "III", "III", "III", "III"),
+  
+  S1 = c(0, 0, 0, 0, 0, 0, 0.14, 0, 1.488, 0, 0.576, 0, 0),
+  S2 = c(0, 0, 0, 0, 0, 0, 0.366, 0, 0.94, 0, 0.948, 0, 0),
+  S3 = c(0, 0, 0, 0, 0, 0, 0.196, 0, 0.581, 0, 0.495, 0, 0),
+  S4 = c(14.402, 10.245, 0.019, 12.916, 13.882, 17.333, 0.023, 11.286, 13.884, 0.016, 14.262, 0, 0),
+  S5 = c(32.934, 23.512, 0.245, 42.921, 33.294, 36.333, 0.672, 35.275, 23.346, 0.033, 39.638, 0, 0),
+  S6 = c(5.939, 10.044, 15.736, 20.371, 12.106, 5.702, 0.794, 15.138, 6.355, 0, 16.839, 0, 0),
+  S7 = c(1.986, 2.86, 7.225, 8.481, 3.997, 0.877, 0.195, 2.602, 3.593, 0, 5.522, 0, 0),
+  S8 = c(0, 0, 0, 0.881, 0, 0.492, 24.409, 0, 106.301, 58.15, 65.306, 0, 109.352),
+  S9 = c(0, 0, 0.067, 0.625, 0, 0.339, 4.039, 0, 3.076, 0, 1.305, 0.21, 0),
+  S10 = c(0.998, 0, 0.285, 0.36, 0, 0.22, 2.438, 0, 18.575, 0.177, 2.978, 57.426, 0),
+  S11 = c(1.044, 0, 0.359, 0.493, 0, 1.28, 34.993, 0, 9.947, 0, 0.734, 8.932, 0)
+)
+
+
+melted_data <- melt(arg_data, id.vars = c("Subtype", "Type", "Rank"),
+                    variable.name = "Sample", value.name = "Abundance")
+
+
+type_colors <- c(
+  "aminoglycoside" = "#1f77b4",
+  "bacitracin" = "#ff7f0e", 
+  "macrolide-lincosamide-streptogramin" = "#2ca02c",
+  "multidrug" = "#d62728",
+  "polymyxin" = "#9467bd",
+  "tetracycline" = "#8c564b",
+  "trimethoprim" = "#e377c2",
+  "vancomycin" = "#7f7f7f"
+)
+
+
+heatmap_plot <- ggplot(melted_data, aes(x = Sample, y = reorder(Subtype, desc(Subtype)), fill = Abundance)) +
+  geom_tile(color = "white", linewidth = 0.8) +
+  scale_fill_gradientn(
+    colors = c("#f7fbff", "#deebf7", "#c6dbef", "#9ecae1", 
+               "#6baed6", "#4292c6", "#2171b5", "#08519c", 
+               "#08306b", "#001f3f"),
+    name = "Abundance",
+    na.value = "grey90",
+    limits = c(0, max(melted_data$Abundance, na.rm = TRUE))
+  ) +
+  labs(
+    title = "Abundance of ARGs Subtypes in Different Sampling Sites",
+    x = "Sampling Sites",
+    y = "ARGs Subtypes"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16, margin = margin(b = 15)),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 1, size = 10),
+    axis.text.y = element_text(size = 11),
+    axis.title = element_text(face = "bold", size = 12),
+    legend.position = "right",
+    legend.key.height = unit(2, "cm"),
+    legend.title = element_text(face = "bold"),
+    panel.grid = element_blank(),
+    panel.border = element_rect(fill = NA, color = "black", linewidth = 1)
+  )
+
+
+type_data <- unique(melted_data[, c("Subtype", "Type")])
+type_data$y_pos <- as.numeric(factor(type_data$Subtype, 
+                                     levels = rev(levels(reorder(melted_data$Subtype, desc(melted_data$Subtype))))))
+
+type_bar <- ggplot(type_data) +
+  geom_tile(aes(x = 1, y = reorder(Subtype, desc(Subtype)), fill = Type), 
+            color = "white", linewidth = 0.8) +
+  scale_fill_manual(values = type_colors, name = "Antibiotic Type") +
+  theme_void() +
+  theme(
+    legend.position = "none",
+    plot.margin = margin(0, 0, 0, 0)
+  )
+
+
+rank_data <- unique(melted_data[, c("Subtype", "Rank")])
+
+rank_text <- ggplot(rank_data) +
+  geom_text(aes(x = 1, y = reorder(Subtype, desc(Subtype)), label = Rank), 
+            size = 4, fontface = "bold") +
+  labs(x = "Rank", y = NULL) +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 0.5, size = 10, face = "bold"),
+    axis.title.x = element_text(face = "bold", size = 11, margin = margin(t = 5)),
+    panel.grid = element_blank(),
+    plot.margin = margin(0, 0, 0, 0)
+  )
+
+
+library(patchwork)
+
+final_plot <- type_bar + heatmap_plot + rank_text +
+  plot_layout(
+    widths = c(0.5, 3, 0.5),  
+    guides = "collect"
+  ) &
+  theme(
+    plot.margin = margin(10, 10, 10, 10)
+  )
+
+
+print(final_plot)
+
+
+ggsave("ARGs_Heatmap_ActualData.png", final_plot, width = 14, height = 8, dpi = 300, bg = "white")
+
+
+library(pheatmap)
+
+
+data_matrix <- as.matrix(arg_data[, 4:14])
+rownames(data_matrix) <- arg_data$Subtype
+colnames(data_matrix) <- paste0("S", 1:11)
+
+
+annotation_row <- data.frame(
+  Type = arg_data$Type,
+  Rank = arg_data$Rank
+)
+rownames(annotation_row) <- arg_data$Subtype
+
+
+annotation_colors <- list(
+  Type = type_colors,
+  Rank = c("I" = "#ff6b6b", "III" = "#4ecdc4")
+)
+
+
+pheatmap_result <- pheatmap(
+  data_matrix,
+  color = colorRampPalette(c("white", "blue", "darkblue"))(100),
+  scale = "row", 
+  cluster_rows = TRUE,  
+  cluster_cols = FALSE,  
+  show_rownames = TRUE,
+  show_colnames = TRUE,
+  annotation_row = annotation_row,
+  annotation_colors = annotation_colors,
+  main = "ARGs Abundance Heatmap (Row-scaled)",
+  fontsize_row = 10,
+  fontsize_col = 11,
+  fontsize = 12,
+  border_color = "grey60",
+  cellwidth = 20,
+  cellheight = 20,
+  display_numbers = FALSE,  
+  number_format = "%.1f",
+  number_color = "black"
