@@ -1,0 +1,154 @@
+library(data.table)
+library(vegan)
+library(tidyverse)
+library(readxl)
+library(agricolae)
+library(picante)
+library(patchwork)
+library(ggpubr)
+library(agricolae)
+library(ggplot2)
+group<-fread("group.txt")
+plot_data <- read.delim("ARG-alpha.txt", sep = '\t', stringsAsFactors = FALSE, check.names = FALSE) %>% 
+  select(.,Shannon,Richness,sample) %>% 
+  left_join(.,group,by='sample')
+
+#dunn'test   LSD   字母abc
+
+
+
+alpha_max <- plot_data %>% 
+  group_by(group1)  %>% 
+  summarise(.,across(where(is.numeric),max)) %>% 
+  ungroup()  %>% 
+  rename_at(.,vars(!group1),function(x) paste0(x,"_max"))
+
+
+alpha_sd <- plot_data %>% 
+  group_by(group1) %>% 
+  summarise(.,across(where(is.numeric),sd)) %>% 
+  ungroup()  %>%
+  rename_at(.,vars(!group1),function(x) paste0(x,"_sd"))
+
+#set.seed(645645645)
+
+#time_name <- unique(plot_data$time)
+#tax_name <- unique(plot_data$tax)
+
+
+alpha_name <- c('Shannon', 'Richness')
+anova_LSD_result <- NULL
+
+
+#for (i in 1:length(alpha_name)) {
+#for (j in 1:length(time_name)) {
+
+anova_LSD <- plot_data %>% 
+  aov(Shannon ~ group1, data = .) %>% #使用aov函数对plot_data数据框进行方差分析，以Shannon作为响应变量，group2作为解释变量
+  LSD.test(., "group1", group =T) %>% #对ANOVA的结果进行LSD多重比较测试
+  .$group %>% 
+  mutate(.,group1 = rownames(.)) %>%
+  rename(.,markers = groups) %>%
+  select(.,group1, markers, everything())  %>% 
+  left_join(., alpha_max, by = 'group1') %>% 
+  left_join(., alpha_sd, by = 'group1') %>% 
+  select(.,group1, markers, contains("Shannon")) %>% 
+  select(., !Shannon) %>% 
+  replace(., is.na(.), 0)
+
+anova_LSD1 <- plot_data %>% 
+  aov(Richness ~ group1, data = .) %>% 
+  LSD.test(., "group1", group =T) %>% 
+  .$group %>% 
+  mutate(.,group1 = rownames(.)) %>%
+  rename(.,markers = groups) %>%
+  select(.,group1, markers, everything())  %>% 
+  left_join(., alpha_max, by = 'group1') %>% 
+  left_join(., alpha_sd, by = 'group1') %>% 
+  select(.,group1, markers, contains("Richness")) %>% 
+  select(., !Richness) %>% 
+  replace(., is.na(.), 0)
+
+#anova_LSD_result <- rbind(anova_LSD_result, anova_LSD)
+# }
+
+
+#}
+
+#箱线图
+#names <- c('all', 'rare', 'abun')
+
+#for (w in 1:length(tax_name)) {
+
+#boxplot_names <- names[w]
+
+alpha_boxplot <- plot_data %>% 
+  inner_join(., anova_LSD, by = 'group1') %>% 
+  
+  ggplot(.)+
+  #scale_x_discrete(limits=c('Africa','Europe','North America','Oceania','South America','Asia','Asia.YZY','uncalculated'))+
+  #scale_fill_manual(#limits=c('Africa','Europe','North America','Oceania','South America','Asia','Asia.YZY','uncalculated'),         
+  #values=c("#CFEAF1","#C4A5DE","#F27970","#96CCCB","#cc340c","#e4ce00","#32B897","#f18800"))+
+  facet_wrap(. ~ group2) +
+  geom_boxplot(aes(x = group3, y = Shannon, fill = group3), alpha = 1)+
+  geom_jitter(aes(x =group2, y = Shannon), size = 0.8,alpha=0.2)+
+  scale_x_discrete(limits=c('Eff','Up','Mid','Down'))+
+  scale_fill_manual(limits=c('Eff','Up','Mid','Down'),         
+                    values=c('#FAA49A',"#105419",'#3B0A0A','#C4391D'))+
+  geom_text(aes(x = group3, y = Shannon_max+Shannon_sd, label = markers), size = 4, position =  position_dodge(0.1))+
+  
+  labs(title=1,
+       title.y="Shannon")+
+  theme(panel.grid = element_blank(), 
+        panel.background = element_rect(fill = 'white'), 
+        panel.border = element_rect(fill = NA, color = "black", linewidth = 0.8, linetype = "solid"),
+        axis.title = element_blank(), 
+        axis.title.y = element_text(size = 15, color = "black"),
+        axis.text.y = element_text(size = 15, color = "black"),
+        axis.text.x = element_blank(),
+        legend.text = element_text(size=15, color = "black"),
+        legend.title = element_text(size=15, color = "black"),
+        plot.title = element_text(hjust = 0.5))
+alpha_boxplot
+
+
+alpha_boxplot1 <- plot_data %>% 
+  inner_join(., anova_LSD1, by = 'group1') %>% 
+ 
+  ggplot(.)+
+  #scale_x_discrete(limits=c('Africa','Europe','North America','Oceania','South America','Asia','Asia.YZY','uncalculated'))+
+  #scale_fill_manual(#limits=c('Africa','Europe','North America','Oceania','South America','Asia','Asia.YZY','uncalculated'),         #修改y轴图例顺序
+  #values=c("#CFEAF1","#C4A5DE","#F27970","#96CCCB","#cc340c","#e4ce00","#32B897","#f18800"))+
+  geom_boxplot(aes(x = group3, y = Richness, fill = group3), alpha = 1)+
+  facet_wrap(. ~ group2) +#分面
+  scale_x_discrete(limits=c('Eff','Up','Mid','Down'))+
+  scale_fill_manual(limits=c('Eff','Up','Mid','Down'),         #修改y轴图例顺序
+                    values=c('#FAA49A',"#105419",'#3B0A0A','#C4391D'))+
+  geom_jitter(aes(x = group2, y =   Richness), size = 0.8,alpha=0.2)+
+  geom_text(aes(x = group3, y = Richness_max+ Richness_sd, label = markers), size = 4, position =  position_dodge(0.1))+
+ 
+  labs( title.  = 2,
+        title.y  = ' Richness')+
+  theme(panel.grid = element_blank(), 
+        panel.background = element_rect(fill = 'white'), 
+        panel.border = element_rect(fill = NA, color = "black", size = 0.8, linetype = "solid"),
+        axis.title.y = element_text(size = 15, color = "black"),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 15, color = "black"),
+        axis.text.x = element_text(size = 15, color = "black"),
+        legend.text = element_text(size=15, color = "black"),
+        legend.title = element_text(size=15, color = "black"),
+        plot.title = element_text(hjust = 0.5))
+alpha_boxplot1
+
+
+boxplot_names <- n[i]
+
+
+alpha_plot=alpha_boxplot/alpha_boxplot1+plot_layout(guides = 'collect')
+assign(boxplot_names,alpha_plot)
+
+
+p1 <- get(n[1])
+p2 <- get(n[2])
+p3 <- get(n[3])
